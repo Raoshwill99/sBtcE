@@ -102,9 +102,12 @@ clarinet test
 - User balance management
 - Administrative controls
 
-### Phase 2
-- Atomic swap implementation
-- Enhanced security measures
+### Phase 2 (Current)
+- Atomic swap implementation between STX and sBTC
+- Comprehensive swap lifecycle management
+- Timeout and cancellation mechanisms
+- Enhanced security measures for swap operations
+- Rate calculation framework (prepared for oracle integration)
 
 ### Phase 3
 - Liquidity provider incentives
@@ -127,3 +130,12 @@ clarinet test
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contact
+Project Maintainer - [Your Name]
+Project Link: [https://github.com/your-username/sbtc-enhancement](https://github.com/your-username/sbtc-enhancement)
+
+## Acknowledgments
+- Bitcoin Core Team
+- Stacks Foundation
+- sBTC Working Group
