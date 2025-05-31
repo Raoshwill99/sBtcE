@@ -1,141 +1,260 @@
-# sBTC Enhancement Project
+# sBTC Enhancement Smart Contract
 
-## Overview
-The sBTC Enhancement Project aims to improve Bitcoin-Stacks interoperability by developing smart contracts that enhance the usability of sBTC (Stacks Bitcoin). This project provides automated features for wrapping/unwrapping BTC, atomic swaps, and implements security measures for safer Bitcoin transactions on the Stacks blockchain.
+A comprehensive Bitcoin-Stacks bridge protocol enabling trustless Bitcoin wrapping, atomic swaps, and DeFi features on the Stacks blockchain.
 
-## Project Goals
-- Simplify the process of wrapping and unwrapping BTC into sBTC
-- Enable atomic swaps between STX and BTC
-- Create incentive mechanisms for liquidity providers
-- Implement time-locked recovery systems
-- Position Stacks as a reliable Bitcoin Layer 2 solution
+## 🚀 Overview
 
-## Technical Architecture
+The sBTC Enhancement project is a multi-phase smart contract system that brings Bitcoin liquidity to the Stacks ecosystem through synthetic Bitcoin (sBTC) tokens. The protocol enables users to wrap Bitcoin into sBTC, perform atomic swaps, provide liquidity, and engage in collateralized lending.
 
-### Smart Contracts
-The project consists of the following main components:
-- Core sBTC wrapping/unwrapping contract
-- Atomic swap functionality
-- Liquidity provider incentive system
-- Time-locked recovery mechanisms
+## 📋 Features
+
+### Phase 1: Foundation
+- Basic sBTC token framework
+- User balance tracking
+- Core data structures
+
+### Phase 2: Atomic Swaps
+- Trustless STX ↔ sBTC swaps
+- Time-locked transactions
+- Automatic cancellation and refunds
+- Swap status tracking
+
+### Phase 3: Complete DeFi Integration
+- **Bitcoin Bridge**: Complete Bitcoin deposit/withdrawal system
+- **Oracle Integration**: Real-time BTC/STX price feeds
+- **Liquidity Pools**: Automated Market Maker (AMM) functionality
+- **Collateralized Positions**: Over-collateralized sBTC minting
+- **Advanced Trading**: Slippage protection and fee mechanisms
+- **Risk Management**: Emergency controls and liquidation systems
+
+## 🏗️ Architecture
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Bitcoin       │    │   Oracle         │    │   Stacks        │
+│   Network       │◄──►│   Service        │◄──►│   Smart         │
+│                 │    │                  │    │   Contract      │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+        │                        │                        │
+        │                        │                        │
+        ▼                        ▼                        ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Bitcoin       │    │   Price Feeds    │    │   sBTC Tokens   │
+│   Deposits      │    │   Validation     │    │   LP Tokens     │
+│   Withdrawals   │    │   Confirmations  │    │   Positions     │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+## 🔧 Technical Specifications
+
+### Constants
+- **Swap Expiration**: 144 blocks (~24 hours)
+- **Bitcoin Confirmations**: 6 minimum
+- **Protocol Fee**: 0.3% (30 basis points)
+- **Max Slippage**: 5% (500 basis points)
+- **Liquidation Threshold**: 80% (8000 basis points)
+- **Min Collateral Ratio**: 125%
+
+### Error Codes
+```clarity
+ERR-NOT-AUTHORIZED (u100)        - Unauthorized access
+ERR-INVALID-AMOUNT (u101)        - Invalid amount specified
+ERR-INSUFFICIENT-BALANCE (u102)  - Insufficient balance
+ERR-SWAP-ALREADY-EXISTS (u103)   - Swap ID already exists
+ERR-SWAP-NOT-FOUND (u104)        - Swap not found
+ERR-SWAP-EXPIRED (u105)          - Swap has expired
+ERR-INVALID-STATUS (u106)        - Invalid operation status
+ERR-TRANSFER-FAILED (u107)       - Transfer operation failed
+ERR-ORACLE-NOT-AUTHORIZED (u108) - Oracle not authorized
+ERR-INVALID-BITCOIN-TX (u109)    - Invalid Bitcoin transaction
+ERR-WITHDRAWAL-NOT-FOUND (u110)  - Withdrawal request not found
+ERR-INSUFFICIENT-COLLATERAL (u111) - Not enough collateral
+ERR-ORACLE-PRICE-STALE (u112)    - Oracle price too old
+ERR-SLIPPAGE-EXCEEDED (u113)     - Slippage tolerance exceeded
+ERR-POOL-NOT-FOUND (u114)        - Liquidity pool not found
+ERR-EMERGENCY-PAUSED (u115)      - Contract is paused
+```
+
+## 📚 Core Functions
+
+### Bitcoin Operations
+```clarity
+;; Wrap Bitcoin into sBTC
+(initiate-bitcoin-wrap (tx-hash (buff 32)) (amount uint) (user principal))
+
+;; Confirm Bitcoin deposit
+(confirm-bitcoin-wrap (tx-hash (buff 32)) (confirmations uint))
+
+;; Request Bitcoin withdrawal
+(initiate-bitcoin-withdrawal (sbtc-amount uint) (bitcoin-address (string-ascii 64)))
+
+;; Process Bitcoin withdrawal
+(process-bitcoin-withdrawal (withdrawal-id uint) (bitcoin-tx-hash (buff 32)))
+```
+
+### Atomic Swaps
+```clarity
+;; Create swap with slippage protection
+(create-atomic-swap-with-slippage (stx-amount uint) (sbtc-amount uint) (slippage-tolerance uint))
+
+;; Accept and execute swap
+(accept-atomic-swap (swap-id uint))
+
+;; Cancel pending swap
+(cancel-atomic-swap (swap-id uint))
+```
+
+### Liquidity Pools
+```clarity
+;; Create new liquidity pool
+(create-liquidity-pool (pool-name (string-ascii 20)) (stx-amount uint) (sbtc-amount uint))
+
+;; Add liquidity to existing pool
+(add-liquidity (pool-name (string-ascii 20)) (stx-amount uint) (sbtc-amount uint))
+```
+
+### Collateralized Positions
+```clarity
+;; Open collateralized position
+(open-collateral-position (stx-collateral uint) (sbtc-to-mint uint))
+
+;; Check liquidation price
+(calculate-liquidation-price (user principal))
+```
+
+### Oracle Functions
+```clarity
+;; Update BTC/STX price
+(update-btc-price (new-price uint))
+
+;; Get current price info
+(get-current-btc-price)
+```
+
+## 🔐 Security Features
+
+### Multi-layer Security
+- **Oracle Authorization**: Only authorized oracles can update prices and confirm transactions
+- **Emergency Pause**: Contract owner can pause operations in emergencies
+- **Slippage Protection**: Automatic protection against price manipulation
+- **Collateral Requirements**: Over-collateralization prevents undercollateralized positions
+- **Time Locks**: Built-in expiration for all time-sensitive operations
+
+### Access Control
+- **Contract Owner**: Administrative functions and emergency controls
+- **Authorized Oracle**: Price updates and Bitcoin transaction confirmations
+- **Users**: Standard trading and liquidity operations
+
+## 🚦 Getting Started
 
 ### Prerequisites
-- Clarity CLI
-- Node.js v14 or higher
-- Stacks blockchain local development environment
-- Bitcoin node (for testing)
+- Stacks blockchain node or connection
+- Clarity development environment
+- Bitcoin testnet/mainnet access (for production)
 
-### Setup Instructions
+### Deployment Steps
 
-1. Clone the repository:
-```bash
-git clone https://github.com/your-username/sbtc-enhancement.git
-cd sbtc-enhancement
-```
+1. **Deploy Base Contract**
+   ```bash
+   clarinet deploy --network testnet
+   ```
 
-2. Install dependencies:
-```bash
-npm install
-```
+2. **Set Oracle**
+   ```clarity
+   (contract-call? .sbtc-enhancement set-oracle 'oracle-principal)
+   ```
 
-3. Start local Stacks blockchain:
-```bash
-clarinet integrate
-```
+3. **Initialize First Pool**
+   ```clarity
+   (contract-call? .sbtc-enhancement create-liquidity-pool "STX-sBTC" u1000000 u100000000)
+   ```
 
-### Contract Deployment
+### Integration Examples
 
-1. Configure your deployment settings in `Clarinet.toml`
-
-2. Deploy the contract:
-```bash
-clarinet deploy
-```
-
-## Smart Contract Functions
-
-### Core Functions
-
-#### initialize-wrap
-Initiates the BTC to sBTC wrapping process.
+#### Wrap Bitcoin
 ```clarity
-(define-public (initialize-wrap (btc-tx-hash (buff 32)) (amount uint)))
+;; 1. User sends Bitcoin to bridge address
+;; 2. Oracle detects deposit and initiates wrap
+(contract-call? .sbtc-enhancement initiate-bitcoin-wrap 0x1234... u100000000 'user-principal)
+
+;; 3. Oracle confirms sufficient confirmations
+(contract-call? .sbtc-enhancement confirm-bitcoin-wrap 0x1234... u6)
 ```
 
-#### complete-wrap
-Completes the wrapping process after BTC confirmation.
+#### Create Atomic Swap
 ```clarity
-(define-public (complete-wrap (btc-tx-hash (buff 32))))
+;; Create swap with 1% slippage tolerance
+(contract-call? .sbtc-enhancement create-atomic-swap-with-slippage u1000000 u100000000 u100)
 ```
 
-#### initiate-unwrap
-Starts the unwrapping process from sBTC to BTC.
+#### Add Liquidity
 ```clarity
-(define-public (initiate-unwrap (amount uint)))
+;; Add liquidity to STX-sBTC pool
+(contract-call? .sbtc-enhancement add-liquidity "STX-sBTC" u1000000 u100000000)
 ```
 
-### Administrative Functions
+## 📊 Economics
 
-#### set-minimum-wrap-amount
-Allows contract owner to set minimum wrap amount.
-```clarity
-(define-public (set-minimum-wrap-amount (new-amount uint)))
-```
+### Fee Structure
+- **Protocol Fee**: 0.3% on atomic swaps
+- **Liquidity Pool Fees**: Configurable per pool
+- **Withdrawal Fees**: Variable based on Bitcoin network conditions
 
-## Testing
+### Collateralization
+- **Minimum Ratio**: 125% (over-collateralized)
+- **Liquidation Threshold**: 80%
+- **Liquidation Penalty**: 5% (paid to liquidators)
 
-Run the test suite:
+## 🧪 Testing
+
+### Unit Tests
 ```bash
 clarinet test
 ```
 
-## Security Considerations
-- Minimum amount restrictions to prevent dust attacks
-- Owner-only administrative functions
-- Balance checks for all operations
-- Pending wrap verification system
+### Integration Tests
+```bash
+clarinet test --coverage
+```
 
-## Development Roadmap
+### Test Scenarios
+- Bitcoin deposit/withdrawal flows
+- Atomic swap execution and cancellation
+- Liquidity pool operations
+- Collateral position management
+- Oracle price updates
+- Emergency pause functionality
 
-### Phase 1 (Current)
-- Basic wrapping/unwrapping functionality
-- User balance management
-- Administrative controls
+## 🔮 Roadmap
 
-### Phase 2 (Current)
-- Atomic swap implementation between STX and sBTC
-- Comprehensive swap lifecycle management
-- Timeout and cancellation mechanisms
-- Enhanced security measures for swap operations
-- Rate calculation framework (prepared for oracle integration)
+### Phase 4 (Future)
+- Cross-chain bridge integration
+- Governance token (sBTC-DAO)
+- Yield farming mechanisms
+- Insurance fund
+- Mobile SDK
 
-### Phase 3
-- Liquidity provider incentives
-- Advanced error handling
+### Phase 5 (Advanced)
+- Layer 2 scaling solutions
+- NFT collateralization
+- Advanced derivatives
+- Institutional features
 
-### Phase 4
-- Time-locked recovery system
-- Event notification system
+## 🤝 Contributing
 
-### Phase 5
-- Performance optimizations
-- Additional security enhancements
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
-## Contributing
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### Development Setup
+```bash
+git clone https://github.com/your-org/sbtc-enhancement
+cd sbtc-enhancement
+clarinet requirements
+```
 
-## License
+## 📄 License
+
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Contact
-Project Maintainer - [Your Name]
-Project Link: [https://github.com/your-username/sbtc-enhancement](https://github.com/your-username/sbtc-enhancement)
+## ⚠️ Disclaimer
 
-## Acknowledgments
-- Bitcoin Core Team
-- Stacks Foundation
-- sBTC Working Group
+This smart contract is provided as-is for educational and development purposes. Please conduct thorough testing and security audits before deploying to mainnet. The developers are not responsible for any loss of funds.
