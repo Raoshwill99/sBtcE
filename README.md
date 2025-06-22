@@ -1,141 +1,223 @@
-# sBTC Enhancement Project
+# sBTC Yield Farming Contract
+
+A simplified Clarity smart contract for yield farming on the Stacks blockchain, designed for sBTC liquidity mining and rewards distribution.
 
 ## Overview
-The sBTC Enhancement Project aims to improve Bitcoin-Stacks interoperability by developing smart contracts that enhance the usability of sBTC (Stacks Bitcoin). This project provides automated features for wrapping/unwrapping BTC, atomic swaps, and implements security measures for safer Bitcoin transactions on the Stacks blockchain.
 
-## Project Goals
-- Simplify the process of wrapping and unwrapping BTC into sBTC
-- Enable atomic swaps between STX and BTC
-- Create incentive mechanisms for liquidity providers
-- Implement time-locked recovery systems
-- Position Stacks as a reliable Bitcoin Layer 2 solution
+This contract allows users to stake sBTC tokens in farms and earn rewards over time. It provides essential yield farming functionality with gas-optimized operations.
 
-## Technical Architecture
+### Key Features
+- 🏭 **Multiple Farms**: Create and manage yield farming pools
+- 💰 **Stake & Earn**: Deposit tokens to earn block-based rewards  
+- 🎁 **Claim Rewards**: Withdraw accumulated earnings anytime
+- ⚡ **Gas Efficient**: Minimal transaction costs
+- 👑 **Owner Controls**: Administrative farm management
 
-### Smart Contracts
-The project consists of the following main components:
-- Core sBTC wrapping/unwrapping contract
-- Atomic swap functionality
-- Liquidity provider incentive system
-- Time-locked recovery mechanisms
+## Contract Structure
+
+### Data Storage
+```clarity
+// Farm Information
+{
+    name: string,           // Farm identifier
+    reward-rate: uint,      // Rewards per block per token
+    total-staked: uint,     // Total staked in farm
+    last-reward-block: uint,// Last reward calculation block
+    active: bool           // Farm status
+}
+
+// User Positions  
+{
+    staked-amount: uint,    // User's staked tokens
+    reward-debt: uint,      // Tracked reward debt
+    entry-block: uint      // When user first staked
+}
+```
+
+### Key Constants
+- `REWARD-PRECISION`: 1000000000000 (12 decimal places)
+- `BASE-APY-RATE`: 8% annual percentage yield
+- `BLOCKS-PER-DAY`: 144 (Stacks network)
+
+## Core Functions
+
+### Read Functions
+```clarity
+;; Get farm details
+(get-farm-info (farm-id uint)) -> (optional farm-data)
+
+;; Get user position
+(get-user-position (farm-id uint) (user principal)) -> (optional position-data)
+
+;; Calculate pending rewards
+(calculate-rewards (farm-id uint) (user principal)) -> (response uint uint)
+```
+
+### Write Functions
+```clarity
+;; Create new farm (owner only)
+(create-farm (name string) (reward-rate uint)) -> (response uint uint)
+
+;; Stake tokens in farm
+(stake (farm-id uint) (amount uint)) -> (response bool uint)
+
+;; Unstake tokens from farm  
+(unstake (farm-id uint) (amount uint)) -> (response bool uint)
+
+;; Claim accumulated rewards
+(claim-rewards (farm-id uint)) -> (response uint uint)
+
+;; Toggle farm status (owner only)
+(toggle-farm (farm-id uint)) -> (response bool uint)
+```
+
+## How Rewards Work
+
+### Calculation Formula
+```
+user_rewards = (staked_amount × blocks_passed × reward_rate) / total_staked
+```
+
+### Example
+- Farm has 1000 sBTC total staked, 100 rewards per block
+- User stakes 100 sBTC (10% of total)  
+- After 144 blocks (1 day): 100 × 0.10 × 144 = 1,440 reward tokens
+
+## Usage Examples
+
+### Creating a Farm
+```clarity
+;; Owner creates farm with 50 rewards per block
+(contract-call? .yield-farming create-farm "sBTC-STX Farm" u50)
+```
+
+### Staking Tokens
+```clarity
+;; Stake 1000 tokens in farm 0
+(contract-call? .yield-farming stake u0 u1000)
+```
+
+### Checking Rewards
+```clarity
+;; View pending rewards
+(contract-call? .yield-farming calculate-rewards u0 tx-sender)
+```
+
+### Claiming Rewards
+```clarity
+;; Claim all pending rewards
+(contract-call? .yield-farming claim-rewards u0)
+```
+
+## Error Codes
+
+| Code | Error | Description |
+|------|-------|-------------|
+| u200 | `ERR-NOT-AUTHORIZED` | Insufficient permissions |
+| u201 | `ERR-FARM-NOT-FOUND` | Invalid farm ID |
+| u202 | `ERR-INSUFFICIENT-STAKE` | Not enough staked tokens |
+| u203 | `ERR-INVALID-AMOUNT` | Invalid amount parameter |
+
+## Deployment
 
 ### Prerequisites
-- Clarity CLI
-- Node.js v14 or higher
-- Stacks blockchain local development environment
-- Bitcoin node (for testing)
+- Clarinet CLI installed
+- Stacks wallet with STX for gas
+- Node.js 16+ for frontend integration
 
-### Setup Instructions
-
-1. Clone the repository:
+### Deploy Steps
 ```bash
-git clone https://github.com/your-username/sbtc-enhancement.git
-cd sbtc-enhancement
-```
+# Initialize project
+clarinet new sbtc-farming
+cd sbtc-farming
 
-2. Install dependencies:
-```bash
-npm install
-```
+# Add contract file
+# Copy contract code to contracts/yield-farming.clar
 
-3. Start local Stacks blockchain:
-```bash
-clarinet integrate
-```
-
-### Contract Deployment
-
-1. Configure your deployment settings in `Clarinet.toml`
-
-2. Deploy the contract:
-```bash
-clarinet deploy
-```
-
-## Smart Contract Functions
-
-### Core Functions
-
-#### initialize-wrap
-Initiates the BTC to sBTC wrapping process.
-```clarity
-(define-public (initialize-wrap (btc-tx-hash (buff 32)) (amount uint)))
-```
-
-#### complete-wrap
-Completes the wrapping process after BTC confirmation.
-```clarity
-(define-public (complete-wrap (btc-tx-hash (buff 32))))
-```
-
-#### initiate-unwrap
-Starts the unwrapping process from sBTC to BTC.
-```clarity
-(define-public (initiate-unwrap (amount uint)))
-```
-
-### Administrative Functions
-
-#### set-minimum-wrap-amount
-Allows contract owner to set minimum wrap amount.
-```clarity
-(define-public (set-minimum-wrap-amount (new-amount uint)))
-```
-
-## Testing
-
-Run the test suite:
-```bash
+# Test locally
 clarinet test
+
+# Deploy to testnet
+clarinet deploy --testnet
+
+# Deploy to mainnet  
+clarinet deploy --mainnet
 ```
 
-## Security Considerations
-- Minimum amount restrictions to prevent dust attacks
-- Owner-only administrative functions
-- Balance checks for all operations
-- Pending wrap verification system
+### Post-Deployment Setup
+```clarity
+;; Create your first farm
+(contract-call? .yield-farming create-farm "Genesis Farm" u100)
+```
 
-## Development Roadmap
+## Integration Example
 
-### Phase 1 (Current)
-- Basic wrapping/unwrapping functionality
-- User balance management
-- Administrative controls
+### Frontend Integration
+```javascript
+import { openContractCall } from '@stacks/connect';
 
-### Phase 2 (Current)
-- Atomic swap implementation between STX and sBTC
-- Comprehensive swap lifecycle management
-- Timeout and cancellation mechanisms
-- Enhanced security measures for swap operations
-- Rate calculation framework (prepared for oracle integration)
+// Stake tokens
+const stakeTokens = async (farmId, amount) => {
+  await openContractCall({
+    contractAddress: 'YOUR_CONTRACT_ADDRESS',
+    contractName: 'yield-farming',
+    functionName: 'stake',
+    functionArgs: [uintCV(farmId), uintCV(amount)],
+  });
+};
 
-### Phase 3
-- Liquidity provider incentives
-- Advanced error handling
+// Check rewards
+const checkRewards = async (farmId, userAddress) => {
+  const result = await callReadOnlyFunction({
+    contractAddress: 'YOUR_CONTRACT_ADDRESS',
+    contractName: 'yield-farming', 
+    functionName: 'calculate-rewards',
+    functionArgs: [uintCV(farmId), principalCV(userAddress)],
+  });
+  return result;
+};
+```
 
-### Phase 4
-- Time-locked recovery system
-- Event notification system
+## Security Notes
 
-### Phase 5
-- Performance optimizations
-- Additional security enhancements
+### Access Control
+- **Owner Functions**: Only contract deployer can create/toggle farms
+- **User Functions**: Users can only manage their own positions
+- **Input Validation**: All parameters validated before execution
 
-## Contributing
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### Known Limitations
+- ⚠️ Token transfers must be implemented externally
+- ⚠️ No built-in slashing or penalty mechanisms  
+- ⚠️ Reward rates set manually by owner
+- ⚠️ No automatic farm end dates
 
-## License
+### Best Practices
+- Start with small reward pools for testing
+- Monitor farm performance regularly
+- Implement proper token transfer logic
+- Add emergency pause mechanisms for production
+
+## Gas Costs
+
+| Operation | Estimated Gas |
+|-----------|---------------|
+| Create Farm | ~1,500 |
+| Stake | ~1,200 |
+| Unstake | ~1,000 |
+| Claim Rewards | ~800 |
+| Check Rewards | ~200 |
+
+## Support
+
+- **Documentation**: [Clarity Language Docs](https://docs.stacks.co/clarity)
+- **Community**: [Stacks Discord](https://discord.gg/stacks)
+- **Issues**: Report bugs via GitHub issues
+
+
+## 📄 License
+
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Contact
-Project Maintainer - [Your Name]
-Project Link: [https://github.com/your-username/sbtc-enhancement](https://github.com/your-username/sbtc-enhancement)
+## ⚠️ Disclaimer
 
-## Acknowledgments
-- Bitcoin Core Team
-- Stacks Foundation
-- sBTC Working Group
+This smart contract is provided as-is for educational and development purposes. Please conduct thorough testing and security audits before deploying to mainnet. The developers are not responsible for any loss of funds.

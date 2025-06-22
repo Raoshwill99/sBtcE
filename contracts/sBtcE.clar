@@ -1,195 +1,192 @@
-;; sBTC Enhancement Smart Contract - Phase 2
-;; Version: 2.0.0 - Atomic Swap Implementation
-
-;; Define SIP-010 Trait
-(define-trait ft-trait
-    (
-        (transfer (uint principal principal (optional (buff 34))) (response bool uint))
-        (get-balance (principal) (response uint uint))
-        (get-total-supply () (response uint uint))
-        (get-name () (response (string-ascii 32) uint))
-        (get-symbol () (response (string-ascii 32) uint))
-        (get-decimals () (response uint uint))
-        (get-token-uri () (response (optional (string-utf8 256)) uint))
-    )
-)
+;; sBTC Compact Yield Farming Contract
+;; Simplified version focusing on core functionality
 
 ;; Error Codes
-(define-constant ERR-NOT-AUTHORIZED (err u100))
-(define-constant ERR-INVALID-AMOUNT (err u101))
-(define-constant ERR-INSUFFICIENT-BALANCE (err u102))
-(define-constant ERR-SWAP-ALREADY-EXISTS (err u103))
-(define-constant ERR-SWAP-NOT-FOUND (err u104))
-(define-constant ERR-SWAP-EXPIRED (err u105))
-(define-constant ERR-INVALID-STATUS (err u106))
-(define-constant ERR-TRANSFER-FAILED (err u107))
+(define-constant ERR-NOT-AUTHORIZED (err u200))
+(define-constant ERR-FARM-NOT-FOUND (err u201))
+(define-constant ERR-INSUFFICIENT-STAKE (err u202))
+(define-constant ERR-INVALID-AMOUNT (err u203))
 
 ;; Constants
-(define-constant SWAP-EXPIRATION-BLOCKS u144) ;; ~24 hours in blocks
-(define-constant STX-DECIMALS u6)
-(define-constant SBTC-DECIMALS u8)
+(define-constant REWARD-PRECISION u1000000000000)
+(define-constant BASE-APY-RATE u8) ;; 8% base APY
+(define-constant BLOCKS-PER-DAY u144)
 
 ;; Data Variables
+(define-data-var total-farms uint u0)
 (define-data-var contract-owner principal tx-sender)
-(define-data-var minimum-wrap-amount uint u100000) ;; in sats
-(define-data-var wrapped-bitcoin-total uint u0)
-(define-data-var swap-nonce uint u0)
 
-;; Data Maps
-(define-map user-balances principal uint)
-(define-map pending-wraps 
-    { tx-hash: (buff 32) }
-    { 
-        user: principal,
-        amount: uint,
-        initiated-at: uint
+;; Farm Data Structure
+(define-map yield-farms
+    uint ;; farm-id
+    {
+        name: (string-ascii 32),
+        reward-rate: uint,
+        total-staked: uint,
+        last-reward-block: uint,
+        active: bool
     }
 )
 
-;; Atomic Swap Data Structure
-(define-map atomic-swaps 
-    uint  ;; swap-id
+;; User Positions
+(define-map user-positions
+    { farm-id: uint, user: principal }
     {
-        initiator: principal,
-        stx-amount: uint,
-        sbtc-amount: uint,
-        timeout-height: uint,
-        status: (string-ascii 20),
-        counterparty: (optional principal)
+        staked-amount: uint,
+        reward-debt: uint,
+        entry-block: uint
     }
 )
 
 ;; Read-Only Functions
-(define-read-only (get-user-balance (user principal))
-    (default-to u0 (map-get? user-balances user))
+(define-read-only (get-farm-info (farm-id uint))
+    (map-get? yield-farms farm-id)
 )
 
-(define-read-only (get-pending-wrap (tx-hash (buff 32)))
-    (map-get? pending-wraps {tx-hash: tx-hash})
+(define-read-only (get-user-position (farm-id uint) (user principal))
+    (map-get? user-positions { farm-id: farm-id, user: user })
 )
 
-(define-read-only (get-swap-details (swap-id uint))
-    (map-get? atomic-swaps swap-id)
-)
-
-(define-read-only (calculate-stx-to-sbtc-rate (stx-amount uint))
-    ;; Simple fixed rate calculation
-    (/ (* stx-amount u100000000) u1000000)
-)
-
-;; Atomic Swap Functions
-(define-public (create-atomic-swap (stx-amount uint) (sbtc-amount uint))
+(define-read-only (calculate-rewards (farm-id uint) (user principal))
     (let
         (
-            (swap-id (var-get swap-nonce))
-            (timeout-height (+ block-height SWAP-EXPIRATION-BLOCKS))
+            (farm (unwrap! (map-get? yield-farms farm-id) (err u0)))
+            (position (unwrap! (map-get? user-positions { farm-id: farm-id, user: user }) (err u0)))
+            (blocks-passed (- block-height (get last-reward-block farm)))
+            (rewards-per-token (if (> (get total-staked farm) u0)
+                (/ (* blocks-passed (get reward-rate farm) REWARD-PRECISION) (get total-staked farm))
+                u0))
+            (user-rewards (/ (* (get staked-amount position) rewards-per-token) REWARD-PRECISION))
         )
-        ;; Verify amounts
-        (asserts! (> stx-amount u0) ERR-INVALID-AMOUNT)
-        (asserts! (> sbtc-amount u0) ERR-INVALID-AMOUNT)
+        (ok user-rewards)
+    )
+)
+
+;; Create new yield farm (owner only)
+(define-public (create-farm (name (string-ascii 32)) (reward-rate uint))
+    (let ((farm-id (var-get total-farms)))
+        (asserts! (is-eq tx-sender (var-get contract-owner)) ERR-NOT-AUTHORIZED)
+        (asserts! (> reward-rate u0) ERR-INVALID-AMOUNT)
         
-        ;; Lock STX
-        (try! (stx-transfer? stx-amount tx-sender (as-contract tx-sender)))
-        
-        ;; Create swap
-        (map-set atomic-swaps
-            swap-id
+        (map-set yield-farms
+            farm-id
             {
-                initiator: tx-sender,
-                stx-amount: stx-amount,
-                sbtc-amount: sbtc-amount,
-                timeout-height: timeout-height,
-                status: "pending",
-                counterparty: none
+                name: name,
+                reward-rate: reward-rate,
+                total-staked: u0,
+                last-reward-block: block-height,
+                active: true
             }
         )
         
-        ;; Increment nonce
-        (var-set swap-nonce (+ swap-id u1))
-        
-        (ok swap-id)
+        (var-set total-farms (+ farm-id u1))
+        (ok farm-id)
     )
 )
 
-(define-public (accept-atomic-swap (swap-id uint))
+;; Stake tokens in farm
+(define-public (stake (farm-id uint) (amount uint))
     (let
         (
-            (swap (unwrap! (map-get? atomic-swaps swap-id) ERR-SWAP-NOT-FOUND))
-            (status (get status swap))
-            (sbtc-amount (get sbtc-amount swap))
-            (initiator-principal (get initiator swap))
-            (swap-stx-amount (get stx-amount swap))
+            (farm (unwrap! (map-get? yield-farms farm-id) ERR-FARM-NOT-FOUND))
+            (current-position (default-to 
+                { staked-amount: u0, reward-debt: u0, entry-block: u0 }
+                (map-get? user-positions { farm-id: farm-id, user: tx-sender })))
         )
-        ;; Verify swap is still valid
-        (asserts! (is-eq status "pending") ERR-INVALID-STATUS)
-        (asserts! (< block-height (get timeout-height swap)) ERR-SWAP-EXPIRED)
+        (asserts! (get active farm) ERR-NOT-AUTHORIZED)
+        (asserts! (> amount u0) ERR-INVALID-AMOUNT)
         
-        ;; Verify sBTC balance
-        (asserts! (>= (get-user-balance tx-sender) sbtc-amount) ERR-INSUFFICIENT-BALANCE)
+        ;; Update user position
+        (map-set user-positions
+            { farm-id: farm-id, user: tx-sender }
+            {
+                staked-amount: (+ (get staked-amount current-position) amount),
+                reward-debt: u0, ;; Simplified - would calculate actual debt
+                entry-block: (if (is-eq (get entry-block current-position) u0) 
+                    block-height (get entry-block current-position))
+            }
+        )
         
-        ;; Transfer sBTC to initiator
-        (try! (transfer-sbtc tx-sender initiator-principal sbtc-amount))
+        ;; Update farm
+        (map-set yield-farms
+            farm-id
+            (merge farm {
+                total-staked: (+ (get total-staked farm) amount),
+                last-reward-block: block-height
+            })
+        )
         
-        ;; Transfer STX to acceptor
-        (try! (as-contract (stx-transfer? swap-stx-amount (as-contract tx-sender) tx-sender)))
+        (ok true)
+    )
+)
+
+;; Unstake tokens from farm
+(define-public (unstake (farm-id uint) (amount uint))
+    (let
+        (
+            (farm (unwrap! (map-get? yield-farms farm-id) ERR-FARM-NOT-FOUND))
+            (position (unwrap! (map-get? user-positions { farm-id: farm-id, user: tx-sender }) ERR-INSUFFICIENT-STAKE))
+        )
+        (asserts! (>= (get staked-amount position) amount) ERR-INSUFFICIENT-STAKE)
         
-        ;; Update swap status
-        (map-set atomic-swaps
-            swap-id
-            (merge swap 
-                {
-                    status: "completed",
-                    counterparty: (some tx-sender)
-                }
+        ;; Update user position
+        (map-set user-positions
+            { farm-id: farm-id, user: tx-sender }
+            (merge position {
+                staked-amount: (- (get staked-amount position) amount)
+            })
+        )
+        
+        ;; Update farm
+        (map-set yield-farms
+            farm-id
+            (merge farm {
+                total-staked: (- (get total-staked farm) amount),
+                last-reward-block: block-height
+            })
+        )
+        
+        (ok true)
+    )
+)
+
+;; Claim rewards
+(define-public (claim-rewards (farm-id uint))
+    (let
+        (
+            (rewards (unwrap! (calculate-rewards farm-id tx-sender) ERR-FARM-NOT-FOUND))
+        )
+        (asserts! (> rewards u0) ERR-INVALID-AMOUNT)
+        
+        ;; Reset reward debt (simplified)
+        (let
+            (
+                (position (unwrap! (map-get? user-positions { farm-id: farm-id, user: tx-sender }) ERR-INSUFFICIENT-STAKE))
+            )
+            (map-set user-positions
+                { farm-id: farm-id, user: tx-sender }
+                (merge position { reward-debt: u0 })
             )
         )
         
-        (ok true)
+        ;; Transfer rewards to user (implement token transfer)
+        (ok rewards)
     )
 )
 
-(define-public (cancel-atomic-swap (swap-id uint))
+;; Toggle farm active status (owner only)
+(define-public (toggle-farm (farm-id uint))
     (let
         (
-            (swap (unwrap! (map-get? atomic-swaps swap-id) ERR-SWAP-NOT-FOUND))
-            (status (get status swap))
-            (initiator-principal (get initiator swap))
-            (swap-stx-amount (get stx-amount swap))
+            (farm (unwrap! (map-get? yield-farms farm-id) ERR-FARM-NOT-FOUND))
         )
-        ;; Verify caller is initiator
-        (asserts! (is-eq tx-sender initiator-principal) ERR-NOT-AUTHORIZED)
-        ;; Verify swap is still pending
-        (asserts! (is-eq status "pending") ERR-INVALID-STATUS)
+        (asserts! (is-eq tx-sender (var-get contract-owner)) ERR-NOT-AUTHORIZED)
         
-        ;; Return STX to initiator
-        (try! (as-contract (stx-transfer? swap-stx-amount (as-contract tx-sender) initiator-principal)))
-        
-        ;; Update swap status
-        (map-set atomic-swaps
-            swap-id
-            (merge swap {status: "cancelled"})
+        (map-set yield-farms
+            farm-id
+            (merge farm { active: (not (get active farm)) })
         )
         
-        (ok true)
-    )
-)
-
-;; Helper Functions
-(define-private (transfer-sbtc (sender principal) (recipient principal) (amount uint))
-    (begin
-        ;; Verify balance
-        (asserts! (>= (get-user-balance sender) amount) ERR-INSUFFICIENT-BALANCE)
-        
-        ;; Deduct from sender
-        (map-set user-balances
-            sender
-            (- (get-user-balance sender) amount)
-        )
-        ;; Add to recipient
-        (map-set user-balances
-            recipient
-            (+ (get-user-balance recipient) amount)
-        )
         (ok true)
     )
 )
