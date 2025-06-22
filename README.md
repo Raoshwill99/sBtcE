@@ -1,255 +1,218 @@
-# sBTC Enhancement Smart Contract
+# sBTC Yield Farming Contract
 
-A comprehensive Bitcoin-Stacks bridge protocol enabling trustless Bitcoin wrapping, atomic swaps, and DeFi features on the Stacks blockchain.
+A simplified Clarity smart contract for yield farming on the Stacks blockchain, designed for sBTC liquidity mining and rewards distribution.
 
-## 🚀 Overview
+## Overview
 
-The sBTC Enhancement project is a multi-phase smart contract system that brings Bitcoin liquidity to the Stacks ecosystem through synthetic Bitcoin (sBTC) tokens. The protocol enables users to wrap Bitcoin into sBTC, perform atomic swaps, provide liquidity, and engage in collateralized lending.
+This contract allows users to stake sBTC tokens in farms and earn rewards over time. It provides essential yield farming functionality with gas-optimized operations.
 
-## 📋 Features
+### Key Features
+- 🏭 **Multiple Farms**: Create and manage yield farming pools
+- 💰 **Stake & Earn**: Deposit tokens to earn block-based rewards  
+- 🎁 **Claim Rewards**: Withdraw accumulated earnings anytime
+- ⚡ **Gas Efficient**: Minimal transaction costs
+- 👑 **Owner Controls**: Administrative farm management
 
-### Phase 1: Foundation
-- Basic sBTC token framework
-- User balance tracking
-- Core data structures
+## Contract Structure
 
-### Phase 2: Atomic Swaps
-- Trustless STX ↔ sBTC swaps
-- Time-locked transactions
-- Automatic cancellation and refunds
-- Swap status tracking
-
-### Phase 3: Complete DeFi Integration
-- **Bitcoin Bridge**: Complete Bitcoin deposit/withdrawal system
-- **Oracle Integration**: Real-time BTC/STX price feeds
-- **Liquidity Pools**: Automated Market Maker (AMM) functionality
-- **Collateralized Positions**: Over-collateralized sBTC minting
-- **Advanced Trading**: Slippage protection and fee mechanisms
-- **Risk Management**: Emergency controls and liquidation systems
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Bitcoin       │    │   Oracle         │    │   Stacks        │
-│   Network       │◄──►│   Service        │◄──►│   Smart         │
-│                 │    │                  │    │   Contract      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-        │                        │                        │
-        │                        │                        │
-        ▼                        ▼                        ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Bitcoin       │    │   Price Feeds    │    │   sBTC Tokens   │
-│   Deposits      │    │   Validation     │    │   LP Tokens     │
-│   Withdrawals   │    │   Confirmations  │    │   Positions     │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-## 🔧 Technical Specifications
-
-### Constants
-- **Swap Expiration**: 144 blocks (~24 hours)
-- **Bitcoin Confirmations**: 6 minimum
-- **Protocol Fee**: 0.3% (30 basis points)
-- **Max Slippage**: 5% (500 basis points)
-- **Liquidation Threshold**: 80% (8000 basis points)
-- **Min Collateral Ratio**: 125%
-
-### Error Codes
+### Data Storage
 ```clarity
-ERR-NOT-AUTHORIZED (u100)        - Unauthorized access
-ERR-INVALID-AMOUNT (u101)        - Invalid amount specified
-ERR-INSUFFICIENT-BALANCE (u102)  - Insufficient balance
-ERR-SWAP-ALREADY-EXISTS (u103)   - Swap ID already exists
-ERR-SWAP-NOT-FOUND (u104)        - Swap not found
-ERR-SWAP-EXPIRED (u105)          - Swap has expired
-ERR-INVALID-STATUS (u106)        - Invalid operation status
-ERR-TRANSFER-FAILED (u107)       - Transfer operation failed
-ERR-ORACLE-NOT-AUTHORIZED (u108) - Oracle not authorized
-ERR-INVALID-BITCOIN-TX (u109)    - Invalid Bitcoin transaction
-ERR-WITHDRAWAL-NOT-FOUND (u110)  - Withdrawal request not found
-ERR-INSUFFICIENT-COLLATERAL (u111) - Not enough collateral
-ERR-ORACLE-PRICE-STALE (u112)    - Oracle price too old
-ERR-SLIPPAGE-EXCEEDED (u113)     - Slippage tolerance exceeded
-ERR-POOL-NOT-FOUND (u114)        - Liquidity pool not found
-ERR-EMERGENCY-PAUSED (u115)      - Contract is paused
+// Farm Information
+{
+    name: string,           // Farm identifier
+    reward-rate: uint,      // Rewards per block per token
+    total-staked: uint,     // Total staked in farm
+    last-reward-block: uint,// Last reward calculation block
+    active: bool           // Farm status
+}
+
+// User Positions  
+{
+    staked-amount: uint,    // User's staked tokens
+    reward-debt: uint,      // Tracked reward debt
+    entry-block: uint      // When user first staked
+}
 ```
 
-## 📚 Core Functions
+### Key Constants
+- `REWARD-PRECISION`: 1000000000000 (12 decimal places)
+- `BASE-APY-RATE`: 8% annual percentage yield
+- `BLOCKS-PER-DAY`: 144 (Stacks network)
 
-### Bitcoin Operations
+## Core Functions
+
+### Read Functions
 ```clarity
-;; Wrap Bitcoin into sBTC
-(initiate-bitcoin-wrap (tx-hash (buff 32)) (amount uint) (user principal))
+;; Get farm details
+(get-farm-info (farm-id uint)) -> (optional farm-data)
 
-;; Confirm Bitcoin deposit
-(confirm-bitcoin-wrap (tx-hash (buff 32)) (confirmations uint))
+;; Get user position
+(get-user-position (farm-id uint) (user principal)) -> (optional position-data)
 
-;; Request Bitcoin withdrawal
-(initiate-bitcoin-withdrawal (sbtc-amount uint) (bitcoin-address (string-ascii 64)))
-
-;; Process Bitcoin withdrawal
-(process-bitcoin-withdrawal (withdrawal-id uint) (bitcoin-tx-hash (buff 32)))
+;; Calculate pending rewards
+(calculate-rewards (farm-id uint) (user principal)) -> (response uint uint)
 ```
 
-### Atomic Swaps
+### Write Functions
 ```clarity
-;; Create swap with slippage protection
-(create-atomic-swap-with-slippage (stx-amount uint) (sbtc-amount uint) (slippage-tolerance uint))
+;; Create new farm (owner only)
+(create-farm (name string) (reward-rate uint)) -> (response uint uint)
 
-;; Accept and execute swap
-(accept-atomic-swap (swap-id uint))
+;; Stake tokens in farm
+(stake (farm-id uint) (amount uint)) -> (response bool uint)
 
-;; Cancel pending swap
-(cancel-atomic-swap (swap-id uint))
+;; Unstake tokens from farm  
+(unstake (farm-id uint) (amount uint)) -> (response bool uint)
+
+;; Claim accumulated rewards
+(claim-rewards (farm-id uint)) -> (response uint uint)
+
+;; Toggle farm status (owner only)
+(toggle-farm (farm-id uint)) -> (response bool uint)
 ```
 
-### Liquidity Pools
+## How Rewards Work
+
+### Calculation Formula
+```
+user_rewards = (staked_amount × blocks_passed × reward_rate) / total_staked
+```
+
+### Example
+- Farm has 1000 sBTC total staked, 100 rewards per block
+- User stakes 100 sBTC (10% of total)  
+- After 144 blocks (1 day): 100 × 0.10 × 144 = 1,440 reward tokens
+
+## Usage Examples
+
+### Creating a Farm
 ```clarity
-;; Create new liquidity pool
-(create-liquidity-pool (pool-name (string-ascii 20)) (stx-amount uint) (sbtc-amount uint))
-
-;; Add liquidity to existing pool
-(add-liquidity (pool-name (string-ascii 20)) (stx-amount uint) (sbtc-amount uint))
+;; Owner creates farm with 50 rewards per block
+(contract-call? .yield-farming create-farm "sBTC-STX Farm" u50)
 ```
 
-### Collateralized Positions
+### Staking Tokens
 ```clarity
-;; Open collateralized position
-(open-collateral-position (stx-collateral uint) (sbtc-to-mint uint))
-
-;; Check liquidation price
-(calculate-liquidation-price (user principal))
+;; Stake 1000 tokens in farm 0
+(contract-call? .yield-farming stake u0 u1000)
 ```
 
-### Oracle Functions
+### Checking Rewards
 ```clarity
-;; Update BTC/STX price
-(update-btc-price (new-price uint))
-
-;; Get current price info
-(get-current-btc-price)
+;; View pending rewards
+(contract-call? .yield-farming calculate-rewards u0 tx-sender)
 ```
 
-## 🔐 Security Features
+### Claiming Rewards
+```clarity
+;; Claim all pending rewards
+(contract-call? .yield-farming claim-rewards u0)
+```
 
-### Multi-layer Security
-- **Oracle Authorization**: Only authorized oracles can update prices and confirm transactions
-- **Emergency Pause**: Contract owner can pause operations in emergencies
-- **Slippage Protection**: Automatic protection against price manipulation
-- **Collateral Requirements**: Over-collateralization prevents undercollateralized positions
-- **Time Locks**: Built-in expiration for all time-sensitive operations
+## Error Codes
 
-### Access Control
-- **Contract Owner**: Administrative functions and emergency controls
-- **Authorized Oracle**: Price updates and Bitcoin transaction confirmations
-- **Users**: Standard trading and liquidity operations
+| Code | Error | Description |
+|------|-------|-------------|
+| u200 | `ERR-NOT-AUTHORIZED` | Insufficient permissions |
+| u201 | `ERR-FARM-NOT-FOUND` | Invalid farm ID |
+| u202 | `ERR-INSUFFICIENT-STAKE` | Not enough staked tokens |
+| u203 | `ERR-INVALID-AMOUNT` | Invalid amount parameter |
 
-## 🚦 Getting Started
+## Deployment
 
 ### Prerequisites
-- Stacks blockchain node or connection
-- Clarity development environment
-- Bitcoin testnet/mainnet access (for production)
+- Clarinet CLI installed
+- Stacks wallet with STX for gas
+- Node.js 16+ for frontend integration
 
-### Deployment Steps
-
-1. **Deploy Base Contract**
-   ```bash
-   clarinet deploy --network testnet
-   ```
-
-2. **Set Oracle**
-   ```clarity
-   (contract-call? .sbtc-enhancement set-oracle 'oracle-principal)
-   ```
-
-3. **Initialize First Pool**
-   ```clarity
-   (contract-call? .sbtc-enhancement create-liquidity-pool "STX-sBTC" u1000000 u100000000)
-   ```
-
-### Integration Examples
-
-#### Wrap Bitcoin
-```clarity
-;; 1. User sends Bitcoin to bridge address
-;; 2. Oracle detects deposit and initiates wrap
-(contract-call? .sbtc-enhancement initiate-bitcoin-wrap 0x1234... u100000000 'user-principal)
-
-;; 3. Oracle confirms sufficient confirmations
-(contract-call? .sbtc-enhancement confirm-bitcoin-wrap 0x1234... u6)
-```
-
-#### Create Atomic Swap
-```clarity
-;; Create swap with 1% slippage tolerance
-(contract-call? .sbtc-enhancement create-atomic-swap-with-slippage u1000000 u100000000 u100)
-```
-
-#### Add Liquidity
-```clarity
-;; Add liquidity to STX-sBTC pool
-(contract-call? .sbtc-enhancement add-liquidity "STX-sBTC" u1000000 u100000000)
-```
-
-## 📊 Economics
-
-### Fee Structure
-- **Protocol Fee**: 0.3% on atomic swaps
-- **Liquidity Pool Fees**: Configurable per pool
-- **Withdrawal Fees**: Variable based on Bitcoin network conditions
-
-### Collateralization
-- **Minimum Ratio**: 125% (over-collateralized)
-- **Liquidation Threshold**: 80%
-- **Liquidation Penalty**: 5% (paid to liquidators)
-
-## 🧪 Testing
-
-### Unit Tests
+### Deploy Steps
 ```bash
+# Initialize project
+clarinet new sbtc-farming
+cd sbtc-farming
+
+# Add contract file
+# Copy contract code to contracts/yield-farming.clar
+
+# Test locally
 clarinet test
+
+# Deploy to testnet
+clarinet deploy --testnet
+
+# Deploy to mainnet  
+clarinet deploy --mainnet
 ```
 
-### Integration Tests
-```bash
-clarinet test --coverage
+### Post-Deployment Setup
+```clarity
+;; Create your first farm
+(contract-call? .yield-farming create-farm "Genesis Farm" u100)
 ```
 
-### Test Scenarios
-- Bitcoin deposit/withdrawal flows
-- Atomic swap execution and cancellation
-- Liquidity pool operations
-- Collateral position management
-- Oracle price updates
-- Emergency pause functionality
+## Integration Example
 
-## 🔮 Roadmap
+### Frontend Integration
+```javascript
+import { openContractCall } from '@stacks/connect';
 
-### Phase 4 (Future)
-- Cross-chain bridge integration
-- Governance token (sBTC-DAO)
-- Yield farming mechanisms
-- Insurance fund
-- Mobile SDK
+// Stake tokens
+const stakeTokens = async (farmId, amount) => {
+  await openContractCall({
+    contractAddress: 'YOUR_CONTRACT_ADDRESS',
+    contractName: 'yield-farming',
+    functionName: 'stake',
+    functionArgs: [uintCV(farmId), uintCV(amount)],
+  });
+};
 
-### Phase 5 (Advanced)
-- Layer 2 scaling solutions
-- NFT collateralization
-- Advanced derivatives
-- Institutional features
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-### Development Setup
-```bash
-git clone https://github.com/your-org/sbtc-enhancement
-cd sbtc-enhancement
-clarinet requirements
+// Check rewards
+const checkRewards = async (farmId, userAddress) => {
+  const result = await callReadOnlyFunction({
+    contractAddress: 'YOUR_CONTRACT_ADDRESS',
+    contractName: 'yield-farming', 
+    functionName: 'calculate-rewards',
+    functionArgs: [uintCV(farmId), principalCV(userAddress)],
+  });
+  return result;
+};
 ```
+
+## Security Notes
+
+### Access Control
+- **Owner Functions**: Only contract deployer can create/toggle farms
+- **User Functions**: Users can only manage their own positions
+- **Input Validation**: All parameters validated before execution
+
+### Known Limitations
+- ⚠️ Token transfers must be implemented externally
+- ⚠️ No built-in slashing or penalty mechanisms  
+- ⚠️ Reward rates set manually by owner
+- ⚠️ No automatic farm end dates
+
+### Best Practices
+- Start with small reward pools for testing
+- Monitor farm performance regularly
+- Implement proper token transfer logic
+- Add emergency pause mechanisms for production
+
+## Gas Costs
+
+| Operation | Estimated Gas |
+|-----------|---------------|
+| Create Farm | ~1,500 |
+| Stake | ~1,200 |
+| Unstake | ~1,000 |
+| Claim Rewards | ~800 |
+| Check Rewards | ~200 |
+
+## Support
+
+- **Documentation**: [Clarity Language Docs](https://docs.stacks.co/clarity)
+- **Community**: [Stacks Discord](https://discord.gg/stacks)
+- **Issues**: Report bugs via GitHub issues
+
 
 ## 📄 License
 
